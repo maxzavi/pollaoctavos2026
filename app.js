@@ -37,6 +37,7 @@ const LIMITE_EQUIPOS = 8;
 
 let currentUser = null;
 let seleccion = {};
+let ordenSeleccion = [];
 let matches = { ...localMatches };
 let faseActiva = "Llave";
 
@@ -83,24 +84,32 @@ async function cargarSeleccion(user) {
 
     if (!snapshot.exists()) {
         seleccion = {};
+        ordenSeleccion = [];
         render();
         return;
     }
 
     const data = snapshot.data();
     seleccion = data.picks || seleccionDesdeEquipos(data.equipos || []);
+    ordenSeleccion = ordenDesdeDatos(data.orden, data.equipos || []);
 
     render();
 }
 
-function teamOptionHtml(nombre) {
-    const bandera = flags[nombre]
-        ? `<img class="flag" src="${flags[nombre]}" alt="${escapeHtml(nombre)}">`
-        : `<span class="flag-placeholder">🏳️</span>`;
+function flagHtml(nombre) {
+    const nombres = String(nombre || "").split(" / ");
+    const banderas = nombres
+        .map(item => flags[item] ? `<img class="flag" src="${flags[item]}" alt="${escapeHtml(item)}">` : "")
+        .filter(Boolean)
+        .join("");
 
+    return banderas || `<span class="flag-placeholder">🏳️</span>`;
+}
+
+function teamOptionHtml(nombre) {
     return `
         <span class="team-name">
-            ${bandera}
+            ${flagHtml(nombre)}
             ${escapeHtml(nombre)}
         </span>
     `;
@@ -170,6 +179,18 @@ function resolverEquipo(ref, matches) {
     return ref;
 }
 
+function resolverEquipoParaSeleccion(ref, matches) {
+    if (!ref) return "TBD";
+
+    const match = matches[ref];
+
+    if (match) {
+        return match.winner || `${resolverEquipoParaSeleccion(match.team1, matches)} / ${resolverEquipoParaSeleccion(match.team2, matches)}`;
+    }
+
+    return ref;
+}
+
 function octavos() {
     return ["O1", "O2", "O3", "O4", "O5", "O6", "O7", "O8"]
         .map(id => matches[id] ? { id, ...matches[id] } : null)
@@ -178,8 +199,8 @@ function octavos() {
 
 function equiposDelPartido(match) {
     return [
-        resolverEquipo(match.team1, matches),
-        resolverEquipo(match.team2, matches)
+        resolverEquipoParaSeleccion(match.team1, matches),
+        resolverEquipoParaSeleccion(match.team2, matches)
     ];
 }
 
@@ -198,26 +219,45 @@ function seleccionDesdeEquipos(equipos) {
     return picks;
 }
 
+function ordenDesdeDatos(orden, equipos) {
+    if (Array.isArray(orden)) {
+        return orden.filter(matchId => seleccion[matchId]);
+    }
+
+    return equipos
+        .map(equipo => octavos().find(match => seleccion[match.id] === equipo)?.id)
+        .filter(Boolean);
+}
+
 function seleccionesOrdenadas() {
-    return octavos()
-        .map(match => {
-            const equipo = seleccion[match.id];
+    return ordenSeleccion
+        .map(matchId => {
+            const match = octavos().find(item => item.id === matchId);
+            const equipo = seleccion[matchId];
+
+            if (!match) {
+                return null;
+            }
+
             return equiposDelPartido(match).includes(equipo) ? equipo : null;
         })
         .filter(Boolean);
 }
 
-function renderTeam(nombre, score, penalties, isWinner) {
-    const flag = flags[nombre];
+function ordenValido() {
+    const idsOctavos = new Set(octavos().map(match => match.id));
+    const idsUnicos = new Set(ordenSeleccion);
 
+    return ordenSeleccion.length === LIMITE_EQUIPOS
+        && idsUnicos.size === LIMITE_EQUIPOS
+        && ordenSeleccion.every(matchId => idsOctavos.has(matchId) && seleccion[matchId]);
+}
+
+function renderTeam(nombre, score, penalties, isWinner) {
     return `
         <div class="team ${isWinner ? "winner" : ""}">
             <span class="team-name">
-                ${
-                    flag
-                        ? `<img class="flag" src="${flag}" alt="${escapeHtml(nombre)}">`
-                        : `<span class="flag-placeholder">🏳️</span>`
-                }
+                ${flagHtml(nombre)}
                 ${escapeHtml(nombre)}
             </span>
 
@@ -239,7 +279,6 @@ function getMatchTeam(match, side, matches) {
 }
 
 function renderBracketTeamLine(teamData) {
-    const flag = flags[teamData.team];
     const marcador = teamData.score ?? "";
     const penales = teamData.penalties !== null && teamData.penalties !== undefined
         ? ` (${teamData.penalties})`
@@ -248,11 +287,7 @@ function renderBracketTeamLine(teamData) {
     return `
         <div class="bracket-team-line ${teamData.isWinner ? "winner" : ""}">
             <span>
-                ${
-                    flag
-                        ? `<img class="flag" src="${flag}" alt="${escapeHtml(teamData.team)}">`
-                        : `<span class="flag-placeholder">🏳️</span>`
-                }
+                ${flagHtml(teamData.team)}
                 ${escapeHtml(teamData.team)}
             </span>
             <strong>${marcador}${penales}</strong>
@@ -483,32 +518,65 @@ function render() {
         `;
     }).join("");
 
-    selectedTeams.innerHTML = partidosOctavos.map((match, index) => {
-        const nombre = seleccion[match.id];
+    selectedTeams.innerHTML = ordenSeleccion.map((matchId, index) => {
+        const nombre = seleccion[matchId];
 
         return `
             <li class="selected-team ${nombre ? "" : "is-empty"}">
                 <span class="position">${index + 1}</span>
-                ${nombre ? teamOptionHtml(nombre) : `<span class="pending-pick">${escapeHtml(match.id)} pendiente</span>`}
+                ${nombre ? teamOptionHtml(nombre) : `<span class="pending-pick">${escapeHtml(matchId)} pendiente</span>`}
+                <span class="team-actions">
+                    <button type="button" data-action="up" data-match="${escapeHtml(matchId)}" ${index === 0 ? "disabled" : ""}>↑</button>
+                    <button type="button" data-action="down" data-match="${escapeHtml(matchId)}" ${index === ordenSeleccion.length - 1 ? "disabled" : ""}>↓</button>
+                </span>
             </li>
         `;
-    }).join("");
+    }).join("") || `<li class="selected-team is-empty"><span class="pending-pick">Elige el primer ganador.</span></li>`;
 
     availableTeams.querySelectorAll(".pick-option").forEach(button => {
         button.addEventListener("click", () => {
             const matchId = button.closest(".pick-card").dataset.match;
+            const esPrimeraVez = !seleccion[matchId];
+
             seleccion[matchId] = button.dataset.team;
+
+            if (esPrimeraVez && !ordenSeleccion.includes(matchId)) {
+                ordenSeleccion.push(matchId);
+            }
+
             status.textContent = "";
             render();
         });
     });
+
+    selectedTeams.querySelectorAll("[data-action]").forEach(button => {
+        button.addEventListener("click", () => {
+            moverOrdenSeleccion(button.dataset.match, button.dataset.action);
+        });
+    });
+}
+
+function moverOrdenSeleccion(matchId, action) {
+    const index = ordenSeleccion.indexOf(matchId);
+
+    if (index < 0) return;
+
+    if (action === "up" && index > 0) {
+        [ordenSeleccion[index - 1], ordenSeleccion[index]] = [ordenSeleccion[index], ordenSeleccion[index - 1]];
+    }
+
+    if (action === "down" && index < ordenSeleccion.length - 1) {
+        [ordenSeleccion[index], ordenSeleccion[index + 1]] = [ordenSeleccion[index + 1], ordenSeleccion[index]];
+    }
+
+    render();
 }
 
 async function guardarSeleccion() {
     if (!currentUser) return;
     const equipos = seleccionesOrdenadas();
 
-    if (equipos.length !== LIMITE_EQUIPOS) {
+    if (equipos.length !== LIMITE_EQUIPOS || !ordenValido()) {
         status.textContent = "Debes elegir un ganador en cada partido de octavos.";
         render();
         return;
@@ -524,6 +592,7 @@ async function guardarSeleccion() {
             email: currentUser.email,
             equipos,
             picks: seleccion,
+            orden: ordenSeleccion,
             updatedAt: serverTimestamp()
         }, { merge: true });
 
@@ -547,6 +616,7 @@ onAuthStateChanged(auth, async user => {
         userInfo.innerHTML = "";
         status.textContent = "Ingresa con Google para ordenar tus equipos.";
         seleccion = {};
+        ordenSeleccion = [];
 
         render();
         return;
