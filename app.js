@@ -34,7 +34,7 @@ const availableCount = document.getElementById("availableCount");
 const selectedCount = document.getElementById("selectedCount");
 const bracketContainer = document.getElementById("bracketContainer");
 const aporteMonto = document.getElementById("aporteMonto");
-const LIMITE_EQUIPOS = 8;
+const LIMITE_EQUIPOS = 4;
 const APORTE_DEFAULT = 10;
 
 let currentUser = null;
@@ -538,6 +538,7 @@ function render() {
     const partidosOctavos = octavos();
     const elegidos = seleccionesOrdenadas();
     const puedeSeleccionar = Boolean(currentUser);
+    const limiteAlcanzado = elegidos.length >= LIMITE_EQUIPOS;
 
     availableCount.textContent = partidosOctavos.length;
     selectedCount.textContent = `${elegidos.length}/${LIMITE_EQUIPOS}`;
@@ -554,10 +555,10 @@ function render() {
                     <span>${formatFecha(match.kickoff)}</span>
                 </div>
                 <div class="pick-options">
-                    <button class="pick-option ${elegido === equipo1 ? "selected" : ""}" type="button" data-team="${escapeHtml(equipo1)}" ${puedeSeleccionar ? "" : "disabled"}>
+                    <button class="pick-option ${elegido === equipo1 ? "selected" : ""}" type="button" data-team="${escapeHtml(equipo1)}" ${puedeSeleccionar && (elegido || !limiteAlcanzado) ? "" : "disabled"}>
                         ${teamOptionHtml(equipo1)}
                     </button>
-                    <button class="pick-option ${elegido === equipo2 ? "selected" : ""}" type="button" data-team="${escapeHtml(equipo2)}" ${puedeSeleccionar ? "" : "disabled"}>
+                    <button class="pick-option ${elegido === equipo2 ? "selected" : ""}" type="button" data-team="${escapeHtml(equipo2)}" ${puedeSeleccionar && (elegido || !limiteAlcanzado) ? "" : "disabled"}>
                         ${teamOptionHtml(equipo2)}
                     </button>
                 </div>
@@ -575,6 +576,7 @@ function render() {
                 <span class="team-actions">
                     <button type="button" data-action="up" data-match="${escapeHtml(matchId)}" ${!puedeSeleccionar || index === 0 ? "disabled" : ""}>↑</button>
                     <button type="button" data-action="down" data-match="${escapeHtml(matchId)}" ${!puedeSeleccionar || index === ordenSeleccion.length - 1 ? "disabled" : ""}>↓</button>
+                    <button type="button" data-action="remove" data-match="${escapeHtml(matchId)}" ${!puedeSeleccionar ? "disabled" : ""}>Quitar</button>
                 </span>
             </li>
         `;
@@ -589,6 +591,11 @@ function render() {
 
             const matchId = button.closest(".pick-card").dataset.match;
             const esPrimeraVez = !seleccion[matchId];
+
+            if (esPrimeraVez && seleccionesOrdenadas().length >= LIMITE_EQUIPOS) {
+                status.textContent = `Solo puedes elegir ${LIMITE_EQUIPOS} selecciones. Quita una para elegir otra.`;
+                return;
+            }
 
             seleccion[matchId] = button.dataset.team;
 
@@ -608,15 +615,22 @@ function render() {
                 return;
             }
 
-            moverOrdenSeleccion(button.dataset.match, button.dataset.action);
+            manejarOrdenSeleccion(button.dataset.match, button.dataset.action);
         });
     });
 }
 
-function moverOrdenSeleccion(matchId, action) {
+function manejarOrdenSeleccion(matchId, action) {
     const index = ordenSeleccion.indexOf(matchId);
 
     if (index < 0) return;
+
+    if (action === "remove") {
+        delete seleccion[matchId];
+        ordenSeleccion.splice(index, 1);
+        render();
+        return;
+    }
 
     if (action === "up" && index > 0) {
         [ordenSeleccion[index - 1], ordenSeleccion[index]] = [ordenSeleccion[index], ordenSeleccion[index - 1]];
@@ -634,7 +648,7 @@ async function guardarSeleccion() {
     const equipos = seleccionesOrdenadas();
 
     if (equipos.length !== LIMITE_EQUIPOS || !ordenValido()) {
-        status.textContent = "Debes elegir un ganador en cada partido de octavos.";
+        status.textContent = `Debes elegir exactamente ${LIMITE_EQUIPOS} selecciones.`;
         render();
         return;
     }

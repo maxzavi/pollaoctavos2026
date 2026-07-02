@@ -590,9 +590,12 @@ h2{
 }
 
 .team-actions{
+    align-items:center;
     display:flex;
+    flex-wrap:wrap;
     gap:6px;
     margin-left:auto;
+    justify-content:flex-end;
 }
 
 .team-actions button{

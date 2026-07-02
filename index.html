@@ -7,8 +7,8 @@
   <link rel="icon" href="./favicon.ico?v=2" sizes="any">
   <link rel="icon" href="./favicon.svg?v=2" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./favicon-180.png?v=2">
-  <link rel="stylesheet" href="./style.css?v=18">
-  <script type="module" src="./app.js?v=18"></script>
+  <link rel="stylesheet" href="./style.css?v=27">
+  <script type="module" src="./app.js?v=27"></script>
 </head>
 <body>
   <main class="app-shell">
@@ -48,8 +48,9 @@
 
       <div class="rules-content">
         <p>
-          Cada participante elige <strong>8 selecciones</strong>, un ganador por cada cruce de octavos, y las ordena según preferencia.
+          Cada participante elige <strong>4 selecciones</strong>, escogiendo ganadores de los cruces de octavos, y las ordena según sus posibilidades de salir campeón.
           El aporte es de <strong id="aporteMonto">S/. 10.00</strong>.
+          Cada selección suma puntos según la ubicación final que alcance en el Mundial, sin importar el orden en que fue elegida.
         </p>
 
         <p>
@@ -57,7 +58,7 @@
           <strong>sábado 4 de julio de 2026, 12:00 p. m. hora peruana</strong>.
         </p>
 
-        <h4>Puntaje por resultado</h4>
+        <h4>Puntaje por cada selección elegida</h4>
 
         <table class="rules-table">
           <tr>
@@ -88,10 +89,26 @@
 
         <h4>Bono por acertar al campeón</h4>
 
+        <p>
+          El orden solo importa para el bono de campeón: el bono se aplica únicamente a la selección que salga campeona y depende de la posición en la que la pusiste en tu lista.
+        </p>
+
         <ul>
           <li>🥇 Primera selección: +4 pts</li>
           <li>🥈 Segunda selección: +3 pts</li>
           <li>🥉 Tercera selección: +2 pts</li>
+          <li>🎖️ Cuarta selección: sin bono</li>
+        </ul>
+
+        <h4>Ejemplos</h4>
+
+        <ul>
+          <li>Si tu primera selección sale campeona, suma 10 pts por campeón + 4 pts de bono = 14 pts.</li>
+          <li>Si cualquiera de tus selecciones queda subcampeona, suma 7 pts y no recibe bono.</li>
+          <li>Si tu tercera selección sale campeona, suma 10 pts por campeón + 2 pts de bono = 12 pts.</li>
+          <li>Si tu cuarta selección sale campeona, suma solo 10 pts porque no tiene bono.</li>
+          <li>Si una de tus selecciones queda eliminada en cuartos, suma 1 pt.</li>
+          <li>Si una de tus selecciones queda eliminada en octavos, suma 0 pts.</li>
         </ul>
 
         <p>
