@@ -13,7 +13,6 @@ import {
 import {
     collection,
     doc,
-    getDoc,
     onSnapshot,
     serverTimestamp,
     setDoc
@@ -42,6 +41,9 @@ let seleccion = {};
 let ordenSeleccion = [];
 let matches = { ...localMatches };
 let faseActiva = "Llave";
+let unsubscribeSeleccion = null;
+let seleccionGuardada = {};
+let ordenGuardado = [];
 
 btnLogin.onclick = async () => {
     try {
@@ -124,22 +126,93 @@ function iniciarConfig() {
     });
 }
 
-async function cargarSeleccion(user) {
-    const ref = doc(db, "seleccionesOctavos", user.uid);
-    const snapshot = await getDoc(ref);
+function aplicarSeleccion(picks, orden, persistida = true) {
+    seleccion = { ...picks };
+    ordenSeleccion = [...orden];
 
-    if (!snapshot.exists()) {
-        seleccion = {};
-        ordenSeleccion = [];
-        render();
-        return;
+    if (persistida) {
+        seleccionGuardada = { ...picks };
+        ordenGuardado = [...orden];
     }
 
-    const data = snapshot.data();
-    seleccion = data.picks || seleccionDesdeEquipos(data.equipos || []);
-    ordenSeleccion = ordenDesdeDatos(data.orden, data.equipos || []);
-
     render();
+}
+
+function restaurarSeleccionGuardada() {
+    seleccion = { ...seleccionGuardada };
+    ordenSeleccion = [...ordenGuardado];
+}
+
+function normalizarSeleccion(picks, orden) {
+    const ordenNormalizado = [];
+    const picksNormalizados = {};
+
+    function agregar(matchId) {
+        if (ordenNormalizado.length >= LIMITE_EQUIPOS || ordenNormalizado.includes(matchId)) {
+            return;
+        }
+
+        const match = octavos().find(item => item.id === matchId);
+        const equipo = picks?.[matchId];
+
+        if (!match || !equiposDelPartido(match).includes(equipo)) {
+            return;
+        }
+
+        ordenNormalizado.push(matchId);
+        picksNormalizados[matchId] = equipo;
+    }
+
+    if (Array.isArray(orden)) {
+        orden.forEach(agregar);
+    }
+
+    octavos().forEach(match => agregar(match.id));
+
+    return {
+        picks: picksNormalizados,
+        orden: ordenNormalizado
+    };
+}
+
+function iniciarSeleccion(user) {
+    if (unsubscribeSeleccion) {
+        unsubscribeSeleccion();
+        unsubscribeSeleccion = null;
+    }
+
+    seleccionGuardada = {};
+    ordenGuardado = [];
+    aplicarSeleccion({}, []);
+
+    const ref = doc(db, "seleccionesOctavos", user.uid);
+
+    unsubscribeSeleccion = onSnapshot(ref, { includeMetadataChanges: true }, snapshot => {
+        if (currentUser?.uid !== user.uid) {
+            return;
+        }
+
+        if (!snapshot.exists()) {
+            aplicarSeleccion({}, [], !snapshot.metadata.hasPendingWrites);
+            return;
+        }
+
+        const data = snapshot.data();
+        const picks = data.picks || seleccionDesdeEquipos(data.equipos || []);
+        const orden = ordenDesdeDatos(data.orden, data.equipos || [], picks);
+        const normalizada = normalizarSeleccion(picks, orden);
+
+        aplicarSeleccion(normalizada.picks, normalizada.orden, !snapshot.metadata.hasPendingWrites);
+    }, error => {
+        if (currentUser?.uid !== user.uid) {
+            return;
+        }
+
+        console.error(error);
+        restaurarSeleccionGuardada();
+        status.textContent = "No se pudo cargar tu selección.";
+        render();
+    });
 }
 
 function flagHtml(nombre) {
@@ -265,13 +338,13 @@ function seleccionDesdeEquipos(equipos) {
     return picks;
 }
 
-function ordenDesdeDatos(orden, equipos) {
+function ordenDesdeDatos(orden, equipos, picks = seleccion) {
     if (Array.isArray(orden)) {
-        return orden.filter(matchId => seleccion[matchId]);
+        return orden.filter(matchId => picks[matchId]);
     }
 
     return equipos
-        .map(equipo => octavos().find(match => seleccion[match.id] === equipo)?.id)
+        .map(equipo => octavos().find(match => picks[match.id] === equipo)?.id)
         .filter(Boolean);
 }
 
@@ -540,7 +613,7 @@ function render() {
     const puedeSeleccionar = Boolean(currentUser);
     const limiteAlcanzado = elegidos.length >= LIMITE_EQUIPOS;
 
-    availableCount.textContent = partidosOctavos.length;
+    availableCount.textContent = `${elegidos.length}/${LIMITE_EQUIPOS}`;
     selectedCount.textContent = `${elegidos.length}/${LIMITE_EQUIPOS}`;
     btnSave.disabled = !puedeSeleccionar || elegidos.length !== LIMITE_EQUIPOS;
 
@@ -645,14 +718,17 @@ function manejarOrdenSeleccion(matchId, action) {
 
 async function guardarSeleccion() {
     if (!currentUser) return;
-    const equipos = seleccionesOrdenadas();
+    const normalizada = normalizarSeleccion(seleccion, ordenSeleccion);
+    const equipos = normalizada.orden.map(matchId => normalizada.picks[matchId]);
 
-    if (equipos.length !== LIMITE_EQUIPOS || !ordenValido()) {
+    if (equipos.length !== LIMITE_EQUIPOS) {
         status.textContent = `Debes elegir exactamente ${LIMITE_EQUIPOS} selecciones.`;
+        aplicarSeleccion(normalizada.picks, normalizada.orden, false);
         render();
         return;
     }
 
+    aplicarSeleccion(normalizada.picks, normalizada.orden, false);
     btnSave.disabled = true;
     btnSave.textContent = "Guardando...";
 
@@ -662,18 +738,22 @@ async function guardarSeleccion() {
             nombre: currentUser.displayName || currentUser.email,
             email: currentUser.email,
             equipos,
-            picks: seleccion,
-            orden: ordenSeleccion,
+            picks: normalizada.picks,
+            orden: normalizada.orden,
             updatedAt: serverTimestamp()
-        }, { merge: true });
+        });
 
         status.textContent = "Selección guardada.";
     } catch (e) {
         console.error(e);
-        status.textContent = e.message;
+        restaurarSeleccionGuardada();
+        status.textContent = e.code === "permission-denied"
+            ? "No tienes permisos para guardar esta selección. Revisa las reglas de Firestore."
+            : e.message;
+        render();
     } finally {
-        btnSave.disabled = false;
         btnSave.textContent = "Guardar selección";
+        render();
     }
 }
 
@@ -688,6 +768,13 @@ onAuthStateChanged(auth, async user => {
         status.textContent = "Ingresa con Google para ordenar tus equipos.";
         seleccion = {};
         ordenSeleccion = [];
+        seleccionGuardada = {};
+        ordenGuardado = [];
+
+        if (unsubscribeSeleccion) {
+            unsubscribeSeleccion();
+            unsubscribeSeleccion = null;
+        }
 
         render();
         return;
@@ -699,7 +786,7 @@ onAuthStateChanged(auth, async user => {
     status.textContent = "";
 
     renderUser(user);
-    await cargarSeleccion(user);
+    iniciarSeleccion(user);
 });
 
 iniciarLlave();
