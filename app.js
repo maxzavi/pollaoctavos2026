@@ -491,10 +491,11 @@ function iniciarLlave() {
 function render() {
     const partidosOctavos = octavos();
     const elegidos = seleccionesOrdenadas();
+    const puedeSeleccionar = Boolean(currentUser);
 
     availableCount.textContent = partidosOctavos.length;
     selectedCount.textContent = `${elegidos.length}/${LIMITE_EQUIPOS}`;
-    btnSave.disabled = elegidos.length !== LIMITE_EQUIPOS;
+    btnSave.disabled = !puedeSeleccionar || elegidos.length !== LIMITE_EQUIPOS;
 
     availableTeams.innerHTML = partidosOctavos.map(match => {
         const [equipo1, equipo2] = equiposDelPartido(match);
@@ -507,10 +508,10 @@ function render() {
                     <span>${formatFecha(match.kickoff)}</span>
                 </div>
                 <div class="pick-options">
-                    <button class="pick-option ${elegido === equipo1 ? "selected" : ""}" type="button" data-team="${escapeHtml(equipo1)}">
+                    <button class="pick-option ${elegido === equipo1 ? "selected" : ""}" type="button" data-team="${escapeHtml(equipo1)}" ${puedeSeleccionar ? "" : "disabled"}>
                         ${teamOptionHtml(equipo1)}
                     </button>
-                    <button class="pick-option ${elegido === equipo2 ? "selected" : ""}" type="button" data-team="${escapeHtml(equipo2)}">
+                    <button class="pick-option ${elegido === equipo2 ? "selected" : ""}" type="button" data-team="${escapeHtml(equipo2)}" ${puedeSeleccionar ? "" : "disabled"}>
                         ${teamOptionHtml(equipo2)}
                     </button>
                 </div>
@@ -526,8 +527,8 @@ function render() {
                 <span class="position">${index + 1}</span>
                 ${nombre ? teamOptionHtml(nombre) : `<span class="pending-pick">${escapeHtml(matchId)} pendiente</span>`}
                 <span class="team-actions">
-                    <button type="button" data-action="up" data-match="${escapeHtml(matchId)}" ${index === 0 ? "disabled" : ""}>↑</button>
-                    <button type="button" data-action="down" data-match="${escapeHtml(matchId)}" ${index === ordenSeleccion.length - 1 ? "disabled" : ""}>↓</button>
+                    <button type="button" data-action="up" data-match="${escapeHtml(matchId)}" ${!puedeSeleccionar || index === 0 ? "disabled" : ""}>↑</button>
+                    <button type="button" data-action="down" data-match="${escapeHtml(matchId)}" ${!puedeSeleccionar || index === ordenSeleccion.length - 1 ? "disabled" : ""}>↓</button>
                 </span>
             </li>
         `;
@@ -535,6 +536,11 @@ function render() {
 
     availableTeams.querySelectorAll(".pick-option").forEach(button => {
         button.addEventListener("click", () => {
+            if (!currentUser) {
+                status.textContent = "Ingresa con Google para seleccionar equipos.";
+                return;
+            }
+
             const matchId = button.closest(".pick-card").dataset.match;
             const esPrimeraVez = !seleccion[matchId];
 
@@ -551,6 +557,11 @@ function render() {
 
     selectedTeams.querySelectorAll("[data-action]").forEach(button => {
         button.addEventListener("click", () => {
+            if (!currentUser) {
+                status.textContent = "Ingresa con Google para ordenar tu selección.";
+                return;
+            }
+
             moverOrdenSeleccion(button.dataset.match, button.dataset.action);
         });
     });
