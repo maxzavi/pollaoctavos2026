@@ -33,7 +33,9 @@ const selectedTeams = document.getElementById("selectedTeams");
 const availableCount = document.getElementById("availableCount");
 const selectedCount = document.getElementById("selectedCount");
 const bracketContainer = document.getElementById("bracketContainer");
+const aporteMonto = document.getElementById("aporteMonto");
 const LIMITE_EQUIPOS = 8;
+const APORTE_DEFAULT = 10;
 
 let currentUser = null;
 let seleccion = {};
@@ -76,6 +78,50 @@ function renderUser(user) {
             <small>${escapeHtml(user.email)}</small>
         </span>
     `;
+}
+
+function formatSoles(value) {
+    const monto = Number(value);
+    const aporte = Number.isFinite(monto) ? monto : APORTE_DEFAULT;
+
+    return `S/. ${aporte.toFixed(2)}`;
+}
+
+function renderAporte(value = APORTE_DEFAULT) {
+    aporteMonto.textContent = formatSoles(value);
+}
+
+function aporteDesdeConfig(data) {
+    return data?.aporte
+        ?? data?.aportes
+        ?? data?.monto
+        ?? data?.montoAporte
+        ?? data?.cuota
+        ?? data?.inscripcion
+        ?? data?.precio
+        ?? data?.valor;
+}
+
+function iniciarConfig() {
+    renderAporte();
+
+    onSnapshot(doc(db, "config", "pollaOctavos"), snapshot => {
+        if (!snapshot.exists()) {
+            renderAporte();
+            return;
+        }
+
+        const aporte = aporteDesdeConfig(snapshot.data());
+
+        if (aporte !== undefined && aporte !== null && aporte !== "") {
+            renderAporte(aporte);
+            return;
+        }
+
+        renderAporte();
+    }, () => {
+        renderAporte();
+    });
 }
 
 async function cargarSeleccion(user) {
@@ -643,3 +689,4 @@ onAuthStateChanged(auth, async user => {
 });
 
 iniciarLlave();
+iniciarConfig();
