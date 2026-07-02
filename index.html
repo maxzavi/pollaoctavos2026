@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pronóstico de Octavos</title>
+  <link rel="icon" href="./favicon.ico?v=2" sizes="any">
+  <link rel="icon" href="./favicon.svg?v=2" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./favicon-180.png?v=2">
+  <link rel="stylesheet" href="./style.css?v=4">
+  <script type="module" src="./app.js?v=4"></script>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <h1>Pronóstico de Octavos</h1>
+        <p>Elige un ganador por cada cruce de octavos.</p>
+      </div>
+
+      <section class="auth-panel">
+        <button id="btnLogin" class="primary-button" type="button">
+          <svg class="button-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M15 3h4a2 2 0 0 1 2 2v4"/>
+            <path d="M10 14 21 3"/>
+            <path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/>
+          </svg>
+          Ingresar con Google
+        </button>
+
+        <div id="userInfo" class="user-profile"></div>
+
+        <button id="btnLogout" class="ghost-button" type="button" hidden>
+          <svg class="button-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <path d="M16 17l5-5-5-5"/>
+            <path d="M21 12H9"/>
+          </svg>
+          Salir
+        </button>
+      </section>
+    </header>
+
+    <p id="status" class="status"></p>
+
+    <details class="bracket-panel" open>
+      <summary>Llave del Mundial</summary>
+
+      <div class="bracket-tabs">
+        <button class="tab active" data-fase="Llave" type="button">Llave</button>
+        <button class="tab" data-fase="Todos" type="button">Todos</button>
+        <button class="tab" data-fase="16avos" type="button">16avos</button>
+        <button class="tab" data-fase="Octavos" type="button">Octavos</button>
+        <button class="tab" data-fase="Cuartos" type="button">Cuartos</button>
+        <button class="tab" data-fase="Semifinal" type="button">Semis</button>
+        <button class="tab" data-fase="Final" type="button">Final</button>
+      </div>
+
+      <div id="bracketContainer" class="bracket-container"></div>
+    </details>
+
+    <section id="selectionPanel" class="selection-panel" hidden>
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Elige ganadores de octavos</h2>
+          <span id="availableCount" class="counter">0</span>
+        </div>
+        <div id="availableTeams" class="team-list"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Mi selección</h2>
+          <span id="selectedCount" class="counter">0</span>
+        </div>
+        <ol id="selectedTeams" class="selected-list"></ol>
+        <button id="btnSave" class="save-button" type="button">Guardar selección</button>
+      </section>
+    </section>
+  </main>
+</body>
+</html>
