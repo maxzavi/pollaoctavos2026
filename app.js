@@ -35,8 +35,11 @@ const bracketContainer = document.getElementById("bracketContainer");
 const aporteMonto = document.getElementById("aporteMonto");
 const participantsCount = document.getElementById("participantsCount");
 const participantsList = document.getElementById("participantsList");
+const rankingCount = document.getElementById("rankingCount");
+const rankingList = document.getElementById("rankingList");
 const LIMITE_EQUIPOS = 4;
 const APORTE_DEFAULT = 10;
+const BONOS_CAMPEON = [4, 3, 2, 0];
 
 let currentUser = null;
 let seleccion = {};
@@ -156,17 +159,112 @@ function iniciarConfig() {
     });
 }
 
-function renderParticipantes() {
-    participantsCount.textContent = String(participantes.length);
+function equiposEnOpcion(opcion) {
+    return String(opcion || "")
+        .split(" / ")
+        .map(equipo => equipo.trim())
+        .filter(Boolean);
+}
+
+function equipoDesdeReferencia(ref) {
+    if (!ref) return null;
+
+    if (String(ref).startsWith("Perdedor ")) {
+        return perdedorPartido(String(ref).replace("Perdedor ", ""));
+    }
+
+    const match = matches[ref];
+
+    if (match) {
+        return match.winner || null;
+    }
+
+    return ref;
+}
+
+function equiposDelCruce(match) {
+    if (!match) return [];
+
+    return [
+        equipoDesdeReferencia(match.team1),
+        equipoDesdeReferencia(match.team2)
+    ];
+}
+
+function perdedorPartido(matchId) {
+    const match = matches[matchId];
+
+    if (!match?.winner) return null;
+
+    const [equipo1, equipo2] = equiposDelCruce(match);
+
+    if (equipo1 === match.winner) return equipo2;
+    if (equipo2 === match.winner) return equipo1;
+
+    return null;
+}
+
+function posicionesMundial() {
+    return {
+        campeon: matches.F1?.winner || null,
+        subcampeon: perdedorPartido("F1"),
+        tercero: matches.TercerLugar?.winner || null,
+        cuarto: perdedorPartido("TercerLugar"),
+        eliminadosCuartos: ["C1", "C2", "C3", "C4"]
+            .map(perdedorPartido)
+            .filter(Boolean)
+    };
+}
+
+function puntajeEquipo(equipo, orden) {
+    const posiciones = posicionesMundial();
+
+    if (posiciones.campeon === equipo) {
+        return 10 + (BONOS_CAMPEON[orden] || 0);
+    }
+
+    if (posiciones.subcampeon === equipo) return 7;
+    if (posiciones.tercero === equipo) return 5;
+    if (posiciones.cuarto === equipo) return 3;
+    if (posiciones.eliminadosCuartos.includes(equipo)) return 1;
+
+    return 0;
+}
+
+function puntajeOpcion(opcion, orden) {
+    return equiposEnOpcion(opcion)
+        .map(equipo => puntajeEquipo(equipo, orden))
+        .reduce((mayor, puntos) => Math.max(mayor, puntos), 0);
+}
+
+function puntajesParticipante(participante) {
+    const detalle = participante.opciones.map((equipo, index) => ({
+        equipo,
+        puntos: puntajeOpcion(equipo, index)
+    }));
+    const total = detalle.reduce((suma, item) => suma + item.puntos, 0);
+
+    return { detalle, total };
+}
+
+function renderRanking() {
+    rankingCount.textContent = String(participantes.length);
 
     if (participantes.length === 0) {
-        participantsList.innerHTML = `
-            <li class="participant-empty">Todavía no hay participantes registrados.</li>
+        rankingList.innerHTML = `
+            <li class="ranking-empty">Todavía no hay participantes registrados.</li>
         `;
         return;
     }
 
-    participantsList.innerHTML = participantes.map(participante => {
+    const ranking = participantes
+        .map(participante => ({
+            ...participante,
+            puntos: puntajesParticipante(participante).total
+        }))
+        .sort((a, b) => b.puntos - a.puntos || a.nombre.localeCompare(b.nombre, "es"));
+
+    rankingList.innerHTML = ranking.map((participante, index) => {
         const inicial = participante.nombre.trim().charAt(0).toUpperCase() || "?";
         const esActual = currentUser?.uid === participante.uid;
         const photoURL = esActual
@@ -177,16 +275,66 @@ function renderParticipantes() {
             : `<span class="participant-avatar">${escapeHtml(inicial)}</span>`;
 
         return `
-            <li class="participant-item ${esActual ? "is-current" : ""}">
+            <li class="ranking-item ${esActual ? "is-current" : ""}">
+                <span class="position">${index + 1}</span>
                 ${avatar}
                 <span class="participant-info">
                     <strong>${escapeHtml(participante.nombre)}</strong>
-                    <small>${escapeHtml(participante.email || "Sin correo")}</small>
+                    <small>${participante.total}/${LIMITE_EQUIPOS} selecciones</small>
                 </span>
-                <span class="participant-status">${participante.total}/${LIMITE_EQUIPOS}</span>
+                <strong class="ranking-score">${participante.puntos} pts</strong>
             </li>
         `;
     }).join("");
+}
+
+function renderParticipantes() {
+    participantsCount.textContent = String(participantes.length);
+
+    if (participantes.length === 0) {
+        participantsList.innerHTML = `
+            <li class="participant-empty">Todavía no hay participantes registrados.</li>
+        `;
+        renderRanking();
+        return;
+    }
+
+    participantsList.innerHTML = participantes.map(participante => {
+        const puntajes = puntajesParticipante(participante);
+        const inicial = participante.nombre.trim().charAt(0).toUpperCase() || "?";
+        const esActual = currentUser?.uid === participante.uid;
+        const photoURL = esActual
+            ? googlePhotoURL(currentUser) || participante.photoURL
+            : participante.photoURL;
+        const avatar = photoURL
+            ? `<img class="participant-avatar" src="${escapeHtml(photoURL)}" alt="${escapeHtml(participante.nombre)}" referrerpolicy="no-referrer">`
+            : `<span class="participant-avatar">${escapeHtml(inicial)}</span>`;
+        const opciones = participante.opciones.length > 0
+            ? participante.opciones.map((equipo, index) => `
+                <li class="participant-pick">
+                    <span class="position">${index + 1}</span>
+                    ${teamOptionHtml(equipo)}
+                    <strong class="participant-points">${puntajes.detalle[index]?.puntos || 0} pts</strong>
+                </li>
+            `).join("")
+            : `<li class="participant-pick is-empty">Sin selecciones guardadas.</li>`;
+
+        return `
+            <li class="participant-item ${esActual ? "is-current" : ""}">
+                <div class="participant-head">
+                    ${avatar}
+                    <span class="participant-info">
+                        <strong>${escapeHtml(participante.nombre)}</strong>
+                        <small>${escapeHtml(participante.email || "Sin correo")}</small>
+                    </span>
+                    <span class="participant-status">${puntajes.total} pts</span>
+                </div>
+                <ol class="participant-picks">${opciones}</ol>
+            </li>
+        `;
+    }).join("");
+
+    renderRanking();
 }
 
 function participanteDesdeSnapshot(item) {
@@ -201,6 +349,7 @@ function participanteDesdeSnapshot(item) {
         nombre,
         email: data.email || "",
         photoURL: data.photoURL || "",
+        opciones: normalizada.orden.map(matchId => normalizada.picks[matchId]),
         total: normalizada.orden.length
     };
 }
@@ -696,10 +845,12 @@ function iniciarLlave() {
 
         renderBracket(matches, faseActiva);
         render();
+        renderParticipantes();
     }, () => {
         matches = { ...localMatches };
         renderBracket(matches, faseActiva);
         render();
+        renderParticipantes();
     });
 }
 
