@@ -33,6 +33,8 @@ const availableCount = document.getElementById("availableCount");
 const selectedCount = document.getElementById("selectedCount");
 const bracketContainer = document.getElementById("bracketContainer");
 const aporteMonto = document.getElementById("aporteMonto");
+const participantsCount = document.getElementById("participantsCount");
+const participantsList = document.getElementById("participantsList");
 const LIMITE_EQUIPOS = 4;
 const APORTE_DEFAULT = 10;
 
@@ -44,6 +46,7 @@ let faseActiva = "Llave";
 let unsubscribeSeleccion = null;
 let seleccionGuardada = {};
 let ordenGuardado = [];
+let participantes = [];
 
 btnLogin.onclick = async () => {
     try {
@@ -123,6 +126,65 @@ function iniciarConfig() {
         renderAporte();
     }, () => {
         renderAporte();
+    });
+}
+
+function renderParticipantes() {
+    participantsCount.textContent = String(participantes.length);
+
+    if (participantes.length === 0) {
+        participantsList.innerHTML = `
+            <li class="participant-empty">Todavía no hay participantes registrados.</li>
+        `;
+        return;
+    }
+
+    participantsList.innerHTML = participantes.map(participante => {
+        const inicial = participante.nombre.trim().charAt(0).toUpperCase() || "?";
+        const esActual = currentUser?.uid === participante.uid;
+
+        return `
+            <li class="participant-item ${esActual ? "is-current" : ""}">
+                <span class="participant-avatar">${escapeHtml(inicial)}</span>
+                <span class="participant-info">
+                    <strong>${escapeHtml(participante.nombre)}</strong>
+                    <small>${escapeHtml(participante.email || "Sin correo")}</small>
+                </span>
+                <span class="participant-status">${participante.total}/${LIMITE_EQUIPOS}</span>
+            </li>
+        `;
+    }).join("");
+}
+
+function participanteDesdeSnapshot(item) {
+    const data = item.data();
+    const picks = data.picks || seleccionDesdeEquipos(data.equipos || []);
+    const orden = ordenDesdeDatos(data.orden, data.equipos || [], picks);
+    const normalizada = normalizarSeleccion(picks, orden);
+    const nombre = data.nombre || data.email || "Participante";
+
+    return {
+        uid: data.uid || item.id,
+        nombre,
+        email: data.email || "",
+        total: normalizada.orden.length
+    };
+}
+
+function iniciarParticipantes() {
+    renderParticipantes();
+
+    onSnapshot(collection(db, "seleccionesOctavos"), snapshot => {
+        participantes = snapshot.docs
+            .map(participanteDesdeSnapshot)
+            .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+
+        renderParticipantes();
+    }, error => {
+        console.error(error);
+        participantsList.innerHTML = `
+            <li class="participant-empty">No se pudieron cargar los participantes.</li>
+        `;
     });
 }
 
@@ -777,6 +839,7 @@ onAuthStateChanged(auth, async user => {
         }
 
         render();
+        renderParticipantes();
         return;
     }
 
@@ -786,8 +849,10 @@ onAuthStateChanged(auth, async user => {
     status.textContent = "";
 
     renderUser(user);
+    renderParticipantes();
     iniciarSeleccion(user);
 });
 
 iniciarLlave();
 iniciarConfig();
+iniciarParticipantes();
