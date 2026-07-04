@@ -40,6 +40,7 @@ const rankingList = document.getElementById("rankingList");
 const LIMITE_EQUIPOS = 4;
 const APORTE_DEFAULT = 10;
 const BONOS_CAMPEON = [4, 3, 2, 0];
+const CIERRE_SELECCIONES = new Date("2026-07-04T12:00:00-05:00");
 
 let currentUser = null;
 let seleccion = {};
@@ -50,6 +51,7 @@ let unsubscribeSeleccion = null;
 let seleccionGuardada = {};
 let ordenGuardado = [];
 let participantes = [];
+let cierreManual = false;
 
 btnLogin.onclick = async () => {
     try {
@@ -87,15 +89,12 @@ function datosPerfilUsuario(user) {
     };
 }
 
-async function sincronizarPerfilParticipante(user) {
-    try {
-        await setDoc(doc(db, "seleccionesOctavos", user.uid), {
-            ...datosPerfilUsuario(user),
-            profileUpdatedAt: serverTimestamp()
-        }, { merge: true });
-    } catch (error) {
-        console.error(error);
-    }
+function seleccionesCerradas() {
+    return cierreManual || Date.now() >= CIERRE_SELECCIONES.getTime();
+}
+
+function mensajeCierre() {
+    return "La selección está cerrada desde el sábado 4 de julio de 2026, 12:00 p. m. hora peruana.";
 }
 
 function renderUser(user) {
@@ -143,19 +142,26 @@ function iniciarConfig() {
     onSnapshot(doc(db, "config", "pollaOctavos"), snapshot => {
         if (!snapshot.exists()) {
             renderAporte();
+            cierreManual = false;
+            render();
             return;
         }
 
-        const aporte = aporteDesdeConfig(snapshot.data());
+        const data = snapshot.data();
+        const aporte = aporteDesdeConfig(data);
+        cierreManual = data.seleccionesCerradas === true || data.cerrado === true || data.closed === true;
 
         if (aporte !== undefined && aporte !== null && aporte !== "") {
             renderAporte(aporte);
-            return;
+        } else {
+            renderAporte();
         }
 
-        renderAporte();
+        render();
     }, () => {
         renderAporte();
+        cierreManual = false;
+        render();
     });
 }
 
@@ -857,12 +863,14 @@ function iniciarLlave() {
 function render() {
     const partidosOctavos = octavos();
     const elegidos = seleccionesOrdenadas();
-    const puedeSeleccionar = Boolean(currentUser);
+    const cerrado = seleccionesCerradas();
+    const puedeSeleccionar = Boolean(currentUser) && !cerrado;
     const limiteAlcanzado = elegidos.length >= LIMITE_EQUIPOS;
 
     availableCount.textContent = `${elegidos.length}/${LIMITE_EQUIPOS}`;
     selectedCount.textContent = `${elegidos.length}/${LIMITE_EQUIPOS}`;
     btnSave.disabled = !puedeSeleccionar || elegidos.length !== LIMITE_EQUIPOS;
+    btnSave.textContent = cerrado ? "Selección cerrada" : "Guardar selección";
 
     availableTeams.innerHTML = partidosOctavos.map(match => {
         const [equipo1, equipo2] = equiposDelPartido(match);
@@ -909,6 +917,11 @@ function render() {
                 return;
             }
 
+            if (seleccionesCerradas()) {
+                status.textContent = mensajeCierre();
+                return;
+            }
+
             const matchId = button.closest(".pick-card").dataset.match;
             const esPrimeraVez = !seleccion[matchId];
 
@@ -932,6 +945,11 @@ function render() {
         button.addEventListener("click", () => {
             if (!currentUser) {
                 status.textContent = "Ingresa con Google para ordenar tu selección.";
+                return;
+            }
+
+            if (seleccionesCerradas()) {
+                status.textContent = mensajeCierre();
                 return;
             }
 
@@ -965,6 +983,13 @@ function manejarOrdenSeleccion(matchId, action) {
 
 async function guardarSeleccion() {
     if (!currentUser) return;
+
+    if (seleccionesCerradas()) {
+        status.textContent = mensajeCierre();
+        render();
+        return;
+    }
+
     const normalizada = normalizarSeleccion(seleccion, ordenSeleccion);
     const equipos = normalizada.orden.map(matchId => normalizada.picks[matchId]);
 
@@ -1033,10 +1058,10 @@ onAuthStateChanged(auth, async user => {
 
     renderUser(user);
     renderParticipantes();
-    sincronizarPerfilParticipante(user);
     iniciarSeleccion(user);
 });
 
 iniciarLlave();
 iniciarConfig();
 iniciarParticipantes();
+setInterval(render, 30000);
