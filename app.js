@@ -216,8 +216,10 @@ function posicionesMundial() {
         subcampeon: perdedorPartido("F1"),
         tercero: matches.TercerLugar?.winner || null,
         cuarto: perdedorPartido("TercerLugar"),
-        eliminadosCuartos: ["C1", "C2", "C3", "C4"]
-            .map(perdedorPartido)
+        clasificadosCuartos: ["O1", "O2", "O3", "O4", "O5", "O6", "O7", "O8"]
+            .map(matchId => matches[matchId])
+            .filter(match => match?.winner && estaFinalizado(match))
+            .map(match => match.winner)
             .filter(Boolean)
     };
 }
@@ -232,7 +234,7 @@ function puntajeEquipo(equipo, orden) {
     if (posiciones.subcampeon === equipo) return 7;
     if (posiciones.tercero === equipo) return 5;
     if (posiciones.cuarto === equipo) return 3;
-    if (posiciones.eliminadosCuartos.includes(equipo)) return 1;
+    if (posiciones.clasificadosCuartos.includes(equipo)) return 1;
 
     return 0;
 }

@@ -1,8 +1,19 @@
 const PROJECT_ID = "pollaromeros";
 const COLLECTION = "seleccionesOctavos";
 const DEFAULT_OUTPUT = "participantes.csv";
+const SEPARATOR = ";";
 const MAX_OPTIONS = 4;
 const MATCH_ORDER = ["O1", "O2", "O3", "O4", "O5", "O6", "O7", "O8"];
+const PERU_DATE_FORMAT = new Intl.DateTimeFormat("es-PE", {
+    timeZone: "America/Lima",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+});
 
 const args = process.argv.slice(2);
 const outputArgIndex = args.findIndex(arg => arg === "--output" || arg === "-o");
@@ -70,35 +81,44 @@ function orderedOptions(data) {
         : [];
 }
 
-function csvCell(value) {
-    const text = String(value ?? "");
-
-    if (/[",\n\r]/.test(text)) {
-        return `"${text.replaceAll('"', '""')}"`;
-    }
-
-    return text;
+function tableCell(value) {
+    return String(value ?? "")
+        .replaceAll("\t", " ")
+        .replaceAll("\r", " ")
+        .replaceAll("\n", " ");
 }
 
-function toCsv(rows) {
+function formatPeruDate(value) {
+    if (!value) return "";
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+        return "";
+    }
+
+    return PERU_DATE_FORMAT.format(date);
+}
+
+function toTable(rows) {
     const headers = [
         "uid",
         "nombre",
         "email",
         ...Array.from({ length: MAX_OPTIONS }, (_, index) => `opcion_${index + 1}`),
-        "updatedAt"
+        "updatedAtPeru"
     ];
 
     return [
-        headers.join(","),
+        headers.join(SEPARATOR),
         ...rows.map(row => headers.map(header => {
             if (header.startsWith("opcion_")) {
                 const index = Number(header.replace("opcion_", "")) - 1;
-                return csvCell(row.opciones[index] || "");
+                return tableCell(row.opciones[index] || "");
             }
 
-            return csvCell(row[header]);
-        }).join(","))
+            return tableCell(row[header]);
+        }).join(SEPARATOR))
     ].join("\n");
 }
 
@@ -144,13 +164,13 @@ async function main() {
                 nombre: data.nombre || data.email || "Participante",
                 email: data.email || "",
                 opciones: orderedOptions(data),
-                updatedAt: data.updatedAt || ""
+                updatedAtPeru: formatPeruDate(data.updatedAt)
             };
         })
         .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 
     const { writeFile } = await import("node:fs/promises");
-    await writeFile(outputPath, `${toCsv(rows)}\n`, "utf8");
+    await writeFile(outputPath, `${toTable(rows)}\n`, "utf8");
     console.log(`Archivo generado: ${outputPath}`);
     console.log(`Participantes exportados: ${rows.length}`);
 }
