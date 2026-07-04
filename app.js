@@ -69,11 +69,38 @@ function escapeHtml(value) {
         .replaceAll("'", "&#039;");
 }
 
+function googlePhotoURL(user) {
+    return user?.providerData?.find(provider => provider.providerId === "google.com")?.photoURL
+        || user?.photoURL
+        || "";
+}
+
+function datosPerfilUsuario(user) {
+    return {
+        uid: user.uid,
+        nombre: user.displayName || user.email,
+        email: user.email,
+        photoURL: googlePhotoURL(user)
+    };
+}
+
+async function sincronizarPerfilParticipante(user) {
+    try {
+        await setDoc(doc(db, "seleccionesOctavos", user.uid), {
+            ...datosPerfilUsuario(user),
+            profileUpdatedAt: serverTimestamp()
+        }, { merge: true });
+    } catch (error) {
+        console.error(error);
+    }
+}
+
 function renderUser(user) {
     const nombre = user.displayName || user.email;
     const inicial = (nombre || "?").trim().charAt(0).toUpperCase();
-    const avatar = user.photoURL
-        ? `<img class="avatar" src="${escapeHtml(user.photoURL)}" alt="${escapeHtml(nombre)}" referrerpolicy="no-referrer">`
+    const photoURL = googlePhotoURL(user);
+    const avatar = photoURL
+        ? `<img class="avatar" src="${escapeHtml(photoURL)}" alt="${escapeHtml(nombre)}" referrerpolicy="no-referrer">`
         : `<span class="avatar avatar-fallback">${escapeHtml(inicial)}</span>`;
 
     userInfo.innerHTML = `
@@ -142,10 +169,16 @@ function renderParticipantes() {
     participantsList.innerHTML = participantes.map(participante => {
         const inicial = participante.nombre.trim().charAt(0).toUpperCase() || "?";
         const esActual = currentUser?.uid === participante.uid;
+        const photoURL = esActual
+            ? googlePhotoURL(currentUser) || participante.photoURL
+            : participante.photoURL;
+        const avatar = photoURL
+            ? `<img class="participant-avatar" src="${escapeHtml(photoURL)}" alt="${escapeHtml(participante.nombre)}" referrerpolicy="no-referrer">`
+            : `<span class="participant-avatar">${escapeHtml(inicial)}</span>`;
 
         return `
             <li class="participant-item ${esActual ? "is-current" : ""}">
-                <span class="participant-avatar">${escapeHtml(inicial)}</span>
+                ${avatar}
                 <span class="participant-info">
                     <strong>${escapeHtml(participante.nombre)}</strong>
                     <small>${escapeHtml(participante.email || "Sin correo")}</small>
@@ -167,6 +200,7 @@ function participanteDesdeSnapshot(item) {
         uid: data.uid || item.id,
         nombre,
         email: data.email || "",
+        photoURL: data.photoURL || "",
         total: normalizada.orden.length
     };
 }
@@ -796,9 +830,7 @@ async function guardarSeleccion() {
 
     try {
         await setDoc(doc(db, "seleccionesOctavos", currentUser.uid), {
-            uid: currentUser.uid,
-            nombre: currentUser.displayName || currentUser.email,
-            email: currentUser.email,
+            ...datosPerfilUsuario(currentUser),
             equipos,
             picks: normalizada.picks,
             orden: normalizada.orden,
@@ -850,6 +882,7 @@ onAuthStateChanged(auth, async user => {
 
     renderUser(user);
     renderParticipantes();
+    sincronizarPerfilParticipante(user);
     iniciarSeleccion(user);
 });
 

@@ -241,6 +241,7 @@ button[hidden]{
     font-weight:bold;
     height:34px;
     justify-content:center;
+    object-fit:cover;
 }
 
 .participant-info{
