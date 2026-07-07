@@ -245,6 +245,43 @@ function puntajeOpcion(opcion, orden) {
         .reduce((mayor, puntos) => Math.max(mayor, puntos), 0);
 }
 
+function equiposIncluyen(equipos, equipo) {
+    return equipos.filter(Boolean).includes(equipo);
+}
+
+function equipoYaNoPuedeSumar(equipo) {
+    if (!equipo) return false;
+
+    const final = matches.F1;
+    const tercerLugar = matches.TercerLugar;
+
+    if (estaFinalizado(final) && equiposIncluyen(equiposDelCruce(final), equipo)) {
+        return true;
+    }
+
+    if (estaFinalizado(tercerLugar) && equiposIncluyen(equiposDelCruce(tercerLugar), equipo)) {
+        return true;
+    }
+
+    return Object.values(matches).some(match => {
+        if (!estaFinalizado(match) || !match.winner) {
+            return false;
+        }
+
+        if (!equiposIncluyen(equiposDelCruce(match), equipo) || match.winner === equipo) {
+            return false;
+        }
+
+        return match.fase !== "Semifinal";
+    });
+}
+
+function opcionCerrada(opcion) {
+    const equipos = equiposEnOpcion(opcion);
+
+    return equipos.length > 0 && equipos.every(equipoYaNoPuedeSumar);
+}
+
 function puntajesParticipante(participante) {
     const detalle = participante.opciones.map((equipo, index) => ({
         equipo,
@@ -318,13 +355,17 @@ function renderParticipantes() {
             ? `<img class="participant-avatar" src="${escapeHtml(photoURL)}" alt="${escapeHtml(participante.nombre)}" referrerpolicy="no-referrer">`
             : `<span class="participant-avatar">${escapeHtml(inicial)}</span>`;
         const opciones = participante.opciones.length > 0
-            ? participante.opciones.map((equipo, index) => `
-                <li class="participant-pick">
+            ? participante.opciones.map((equipo, index) => {
+                const cerrada = opcionCerrada(equipo);
+
+                return `
+                <li class="participant-pick ${cerrada ? "is-locked" : ""}">
                     <span class="position">${index + 1}</span>
                     ${teamOptionHtml(equipo)}
                     <strong class="participant-points">${puntajes.detalle[index]?.puntos || 0} pts</strong>
                 </li>
-            `).join("")
+            `;
+            }).join("")
             : `<li class="participant-pick is-empty">Sin selecciones guardadas.</li>`;
 
         return `

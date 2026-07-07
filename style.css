@@ -347,6 +347,17 @@ button[hidden]{
     padding:8px;
 }
 
+.participant-pick.is-locked{
+    background:#f8fafc;
+    border-color:#cbd5e1;
+    color:#64748b;
+}
+
+.participant-pick.is-locked .flag{
+    filter:grayscale(1);
+    opacity:.7;
+}
+
 .participant-pick .team-name{
     flex:1;
 }
