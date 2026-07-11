@@ -216,6 +216,11 @@ function posicionesMundial() {
         subcampeon: perdedorPartido("F1"),
         tercero: matches.TercerLugar?.winner || null,
         cuarto: perdedorPartido("TercerLugar"),
+        clasificadosSemifinales: ["C1", "C2", "C3", "C4"]
+            .map(matchId => matches[matchId])
+            .filter(match => match?.winner && estaFinalizado(match))
+            .map(match => match.winner)
+            .filter(Boolean),
         clasificadosCuartos: ["O1", "O2", "O3", "O4", "O5", "O6", "O7", "O8"]
             .map(matchId => matches[matchId])
             .filter(match => match?.winner && estaFinalizado(match))
@@ -234,6 +239,7 @@ function puntajeEquipo(equipo, orden) {
     if (posiciones.subcampeon === equipo) return 7;
     if (posiciones.tercero === equipo) return 5;
     if (posiciones.cuarto === equipo) return 3;
+    if (posiciones.clasificadosSemifinales.includes(equipo)) return 3;
     if (posiciones.clasificadosCuartos.includes(equipo)) return 1;
 
     return 0;
@@ -344,8 +350,15 @@ function renderParticipantes() {
         return;
     }
 
-    participantsList.innerHTML = participantes.map(participante => {
-        const puntajes = puntajesParticipante(participante);
+    const participantesOrdenados = participantes
+        .map(participante => ({
+            ...participante,
+            puntajes: puntajesParticipante(participante)
+        }))
+        .sort((a, b) => b.puntajes.total - a.puntajes.total || a.nombre.localeCompare(b.nombre, "es"));
+
+    participantsList.innerHTML = participantesOrdenados.map(participante => {
+        const puntajes = participante.puntajes;
         const inicial = participante.nombre.trim().charAt(0).toUpperCase() || "?";
         const esActual = currentUser?.uid === participante.uid;
         const photoURL = esActual
