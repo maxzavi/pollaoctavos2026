@@ -216,6 +216,11 @@ function posicionesMundial() {
         subcampeon: perdedorPartido("F1"),
         tercero: matches.TercerLugar?.winner || null,
         cuarto: perdedorPartido("TercerLugar"),
+        clasificadosFinal: ["S1", "S2"]
+            .map(matchId => matches[matchId])
+            .filter(match => match?.winner && estaFinalizado(match))
+            .map(match => match.winner)
+            .filter(Boolean),
         clasificadosSemifinales: ["C1", "C2", "C3", "C4"]
             .map(matchId => matches[matchId])
             .filter(match => match?.winner && estaFinalizado(match))
@@ -237,6 +242,7 @@ function puntajeEquipo(equipo, orden) {
     }
 
     if (posiciones.subcampeon === equipo) return 7;
+    if (posiciones.clasificadosFinal.includes(equipo)) return 7;
     if (posiciones.tercero === equipo) return 5;
     if (posiciones.cuarto === equipo) return 3;
     if (posiciones.clasificadosSemifinales.includes(equipo)) return 3;
