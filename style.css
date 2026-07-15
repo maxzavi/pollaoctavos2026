@@ -412,8 +412,8 @@ button[hidden]{
     align-items:start;
     display:grid;
     gap:18px;
-    grid-template-columns:repeat(5, 210px);
-    min-width:1122px;
+    grid-template-columns:repeat(6, 210px);
+    min-width:1350px;
 }
 
 .bracket-round{

@@ -602,6 +602,10 @@ function formatDia(kickoff) {
 function resolverEquipo(ref, matches) {
     if (!ref) return "TBD";
 
+    if (String(ref).startsWith("Perdedor ")) {
+        return perdedorPartido(String(ref).replace("Perdedor ", "")) || ref;
+    }
+
     const match = matches[ref];
 
     if (match) {
@@ -613,6 +617,10 @@ function resolverEquipo(ref, matches) {
 
 function resolverEquipoParaSeleccion(ref, matches) {
     if (!ref) return "TBD";
+
+    if (String(ref).startsWith("Perdedor ")) {
+        return perdedorPartido(String(ref).replace("Perdedor ", "")) || ref;
+    }
 
     const match = matches[ref];
 
@@ -767,7 +775,8 @@ function renderKnockoutBracket(matches) {
         { title: "Octavos", ids: ["O1", "O2", "O3", "O4", "O5", "O6", "O7", "O8"] },
         { title: "Cuartos", ids: ["C1", "C2", "C3", "C4"] },
         { title: "Semis", ids: ["S1", "S2"] },
-        { title: "Final", ids: ["F1"] }
+        { title: "Final", ids: ["F1"] },
+        { title: "3er puesto", ids: ["TercerLugar"] }
     ];
 
     const posiciones = {};
@@ -801,6 +810,7 @@ function renderKnockoutBracket(matches) {
     }
 
     calcularPosicion("F1");
+    calcularPosicion("TercerLugar");
 
     bracketContainer.innerHTML = `
         <div class="knockout-shell">
